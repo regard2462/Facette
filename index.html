@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Facette · 3D jewelry viewer</title>
+<link rel="stylesheet" href="src/style.css">
+<script type="importmap">
+{
+	"imports": {
+		"three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.webgpu.js",
+		"three/webgpu": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.webgpu.js",
+		"three/tsl": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.tsl.js",
+		"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+	}
+}
+</script>
+</head>
+<body>
+<script>if(new URLSearchParams(location.search).get("scene")==="dark")document.body.classList.add("dark");
+function fail(m){const l=document.getElementById("loading");l.textContent=m;l.setAttribute("role","alert");l.classList.add("failed");}</script>
+<canvas id="view" role="img" aria-label="3D view of a ring. Arrow keys rotate, plus and minus zoom." tabindex="0"></canvas>
+<svg id="gizmo" hidden aria-hidden="true"></svg>
+
+<div id="brand">FACETTE</div>
+<div id="loading" role="status" aria-label="Loading"><span></span></div>
+<div id="notice" role="alert" hidden></div>
+<div id="fps" aria-hidden="true" hidden></div>
+
+<nav id="views" aria-label="Views">
+	<button data-view="0" title="View 1" aria-label="View 1">1</button>
+	<button data-view="1" title="View 2" aria-label="View 2">2</button>
+	<button data-view="2" title="View 3" aria-label="View 3">3</button>
+	<button data-view="3" title="View 4" aria-label="View 4">4</button>
+</nav>
+
+<nav id="tools" aria-label="Tools">
+	<button id="full" title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+	<button id="play" title="Rotate" aria-label="Rotate"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></svg></button>
+	<button id="reset" title="Reset camera" aria-label="Reset camera"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2M4 4v5h5"/></svg></button>
+	<button id="light" title="Light" aria-label="Light" aria-controls="light-panel"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></button>
+	<button id="scene" title="Light or dark studio" aria-label="Dark studio"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg></button>
+	<button id="dof" title="Depth of field (click the ring to set focus)" aria-label="Depth of field"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></button>
+	<button id="quality" title="Quality" aria-label="Quality" aria-controls="quality-panel"><svg viewBox="0 0 24 24"><path d="M4 18h3M4 12h9M4 6h16"/></svg></button>
+</nav>
+
+<section id="light-panel" class="panel side" hidden>
+	<label>Direction <span id="azv" aria-hidden="true"></span><input id="az" type="range" min="-180" max="180" value="40"></label>
+	<label>Elevation <span id="elv" aria-hidden="true"></span><input id="el" type="range" min="15" max="88" value="55"></label>
+	<label>Rotate studio<input id="env" type="range" min="-180" max="180" value="0"></label>
+</section>
+
+<section id="quality-panel" class="panel side" hidden>
+	<div class="row"><button class="chip" data-q="low">Low</button><button class="chip" data-q="mid">Medium</button><button class="chip" data-q="high">High</button></div>
+	<small id="status"></small>
+</section>
+
+<button id="config" title="Design ring" aria-label="Design ring" aria-controls="config-panel"><svg viewBox="0 0 24 24"><path d="M6 4h12l4 6-10 11L2 10z"/><path d="M2 10h20M9 4l3 6 3-6M12 10v11"/></svg></button>
+
+<section id="config-panel" class="panel design" hidden aria-label="Design ring">
+	<h2>Setting</h2><div class="row" id="styles" role="group" aria-label="Setting"></div>
+	<h2>Profile</h2><div class="row" id="profiles" role="group" aria-label="Profile"></div>
+	<h2>Stones</h2>
+	<div class="row" id="gem-target" role="group" aria-label="Stones for"><button class="chip" data-target="center">Center stone</button><button class="chip" data-target="side">Accent stones</button></div>
+	<div class="row" id="quick-gems" role="group" aria-label="Common stones"></div>
+	<input id="gem-search" type="search" placeholder="Search stones or families" aria-label="Search stones or families" autocomplete="off">
+	<div id="gem-list" role="group" aria-label="Gemstones"></div>
+	<h2>Center stone cut</h2><div class="row" id="cuts" role="group" aria-label="Cut"></div>
+	<label>Center stone weight <output id="carat-out" for="carat"></output><input id="carat" type="range" min="0.5" max="3" step="0.05"></label>
+	<h2>Metal</h2><div class="row" id="metals" role="group" aria-label="Metal"></div>
+	<details id="band-editor">
+		<summary>Edit band</summary>
+		<h2>Shape</h2><div class="row" id="band-shape" role="group" aria-label="Band shape"></div>
+		<label>Width at back <output id="band-width-out" for="band-width"></output><input id="band-width" type="range" step="0.05"></label>
+		<label>Thickness <output id="band-thickness-out" for="band-thickness"></output><input id="band-thickness" type="range" step="0.05"></label>
+		<h2>Shoulders</h2><div class="row" id="band-shoulders" role="group" aria-label="Shoulders"></div>
+		<label>Width at shoulders <output id="band-front-out" for="band-front"></output><input id="band-front" type="range" step="0.05"></label>
+		<h2>Finish</h2><div class="row" id="band-finish" role="group" aria-label="Finish"></div>
+		<h2>Edge</h2><div class="row" id="band-edge" role="group" aria-label="Edge"></div>
+		<h2>Pavé</h2>
+		<div class="row" id="pave-rows" role="group" aria-label="Rows"></div>
+		<label>Stones per side <output id="pave-count-out" for="pave-count"></output><input id="pave-count" type="range" step="1"></label>
+		<label>Weight per stone <output id="pave-weight-out" for="pave-weight"></output><input id="pave-weight" type="range" step="0.001"></label>
+		<label>Spacing <output id="pave-pitch-out" for="pave-pitch"></output><input id="pave-pitch" type="range" step="0.01"></label>
+		<div class="row" id="pave-sizing" role="group" aria-label="Stone sizes"></div>
+		<div class="row"><button class="chip" id="band-reset">Reset band</button></div>
+	</details>
+	<h2>Model</h2><div class="row"><button class="chip" id="load" title="Choose a GLB file or drag it onto the window">Load own GLB</button><button class="chip" id="sample" hidden>Show design</button><input type="file" id="file" accept=".glb,model/gltf-binary" hidden></div>
+	<div id="model-info" role="status"></div>
+</section>
+
+<script>if(new URLSearchParams(location.search).has("trace")){window.__errs=[];for(const k of["error","warn"]){const o=console[k];console[k]=(...a)=>{window.__errs.push(k+": "+a.map(String).join(" ").slice(0,300));o.apply(console,a);};}}</script>
+<script type="module" src="src/main.js" onerror="fail('The page could not be loaded. Was npm install run?')"></script>
+</body>
+</html>

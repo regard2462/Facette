@@ -1,0 +1,14 @@
+{
+  "name": "facette-viewer",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "license": "AGPL-3.0-or-later",
+  "description": "3D jewelry viewer with Three.js and WebGPU, rasterized only",
+  "dependencies": {
+    "three": "^0.187.0"
+  },
+  "type": "module",
+  "private": true
+}
